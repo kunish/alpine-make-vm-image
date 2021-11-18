@@ -1,11 +1,10 @@
 name: CI
-on:
-  - pull_request
-  - push
+on: workflow_dispatch
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Install qemu-utils
         run: |
@@ -19,7 +18,11 @@ jobs:
           sudo ./alpine-make-vm-image \
               --image-format qcow2 \
               --image-size 2G \
-              --repositories-file example/repositories \
-              --packages "$(cat example/packages)" \
+              --repositories-file configure/repositories \
+              --packages "$(cat configure/packages)" \
               --script-chroot \
-              alpine-virthardened-$(date +%Y-%m-%d).qcow2 -- ./example/configure.sh
+              alpine-virthardened.qcow2 -- ./configure/setup.sh
+
+      - uses: actions/upload-artifact@v2
+        with:
+          path: alpine-virthardened.qcow2

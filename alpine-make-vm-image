@@ -106,239 +106,256 @@ alpine-devel@lists.alpinelinux.org-6165ee59.rsa.pub:MIICIjANBgkqhkiG9w0BAQEFAAOC
 : ${APK:="apk"}
 : ${APK_OPTS:="--no-progress"}
 
-
 # For compatibility with systems that does not have "realpath" command.
 if ! command -v realpath >/dev/null; then
-	alias realpath='readlink -f'
+  alias realpath='readlink -f'
 fi
 
 die() {
-	printf '\033[1;31mERROR:\033[0m %s\n' "$@" >&2  # bold red
-	exit 1
+  printf '\033[1;31mERROR:\033[0m %s\n' "$@" >&2 # bold red
+  exit 1
 }
 
 einfo() {
-	printf '\n\033[1;36m> %s\033[0m\n' "$@" >&2  # bold cyan
+  printf '\n\033[1;36m> %s\033[0m\n' "$@" >&2 # bold cyan
 }
 
 # Prints help and exists with the specified status.
 help() {
-	sed -En '/^#---help---/,/^#---help---/p' "$0" | sed -E 's/^# ?//; 1d;$d;'
-	exit ${1:-0}
+  sed -En '/^#---help---/,/^#---help---/p' "$0" | sed -E 's/^# ?//; 1d;$d;'
+  exit ${1:-0}
 }
 
 # Cleans the host system. This function is executed before exiting the script.
 cleanup() {
-	set +eu
-	trap '' EXIT HUP INT TERM  # unset trap to avoid loop
+  set +eu
+  trap '' EXIT HUP INT TERM # unset trap to avoid loop
 
-	cd /
-	if [ -d "$temp_dir" ]; then
-		rm -Rf "$temp_dir"
-	fi
-	if [ "$mount_dir" ]; then
-		umount_recursively "$mount_dir" \
-			|| die "Failed to unmount $mount_dir; unmount it and disconnect $nbd_dev manually"
-		rm -Rf "$mount_dir"
-	fi
-	if [ "$nbd_dev" ]; then
-		qemu-nbd --disconnect "$nbd_dev" \
-			|| die "Failed to disconnect $nbd_dev; disconnect it manually"
-	fi
-	if [ "$INSTALL_HOST_PKGS" = yes ]; then
-		_apk del $VIRTUAL_PKG
-	fi
+  cd /
+  if [ -d "$temp_dir" ]; then
+    rm -Rf "$temp_dir"
+  fi
+  if [ "$mount_dir" ]; then
+    umount_recursively "$mount_dir" ||
+      die "Failed to unmount $mount_dir; unmount it and disconnect $nbd_dev manually"
+    rm -Rf "$mount_dir"
+  fi
+  if [ "$nbd_dev" ]; then
+    qemu-nbd --disconnect "$nbd_dev" ||
+      die "Failed to disconnect $nbd_dev; disconnect it manually"
+  fi
+  if [ "$INSTALL_HOST_PKGS" = yes ]; then
+    _apk del $VIRTUAL_PKG
+  fi
 }
 
 _apk() {
-	"$APK" $APK_OPTS "$@"
+  "$APK" $APK_OPTS "$@"
 }
 
 # Attaches the specified image as a NBD block device and prints its path.
 attach_image() {
-	local image="$1"
-	local format="${2:-}"
-	local nbd_dev
+  local image="$1"
+  local format="${2:-}"
+  local nbd_dev
 
-	nbd_dev=$(get_available_nbd) || {
-		modprobe nbd max_part=0
-		sleep 1
-		nbd_dev=$(get_available_nbd)
-	} || die 'No available nbd device found!'
+  nbd_dev=$(get_available_nbd) || {
+    modprobe nbd max_part=0
+    sleep 1
+    nbd_dev=$(get_available_nbd)
+  } || die 'No available nbd device found!'
 
-	qemu-nbd --connect="$nbd_dev" --cache=writeback \
-		${format:+--format=$format} "$image" \
-		&& echo "$nbd_dev"
+  qemu-nbd --connect="$nbd_dev" --cache=writeback \
+    ${format:+--format=$format} "$image" &&
+    echo "$nbd_dev"
 }
 
 # Prints UUID of filesystem on the specified block device.
 blk_uuid() {
-	local dev="$1"
-	blkid "$dev" | sed -En 's/.*UUID="([^"]+)".*/\1/p'
+  local dev="$1"
+  blkid "$dev" | sed -En 's/.*UUID="([^"]+)".*/\1/p'
 }
 
 # Writes Alpine APK keys embedded in this script into directory $1.
 dump_alpine_keys() {
-	local dest_dir="$1"
-	local content file line
+  local dest_dir="$1"
+  local content file line
 
-	mkdir -p "$dest_dir"
-	for line in $ALPINE_KEYS; do
-		file=${line%%:*}
-		content=${line#*:}
+  mkdir -p "$dest_dir"
+  for line in $ALPINE_KEYS; do
+    file=${line%%:*}
+    content=${line#*:}
 
-		printf -- "-----BEGIN PUBLIC KEY-----\n$content\n-----END PUBLIC KEY-----\n" \
-			> "$dest_dir/$file"
-	done
+    printf -- "-----BEGIN PUBLIC KEY-----\n$content\n-----END PUBLIC KEY-----\n" \
+      >"$dest_dir/$file"
+  done
 }
 
 # Prints path of available nbdX device, or returns 1 if not any.
 get_available_nbd() {
-	local dev; for dev in $(find /dev -maxdepth 2 -name 'nbd[0-9]*'); do
-		if [ "$(blockdev --getsize64 "$dev")" -eq 0 ]; then
-			echo "$dev"; return 0
-		fi
-	done
-	return 1
+  local dev
+  for dev in $(find /dev -maxdepth 2 -name 'nbd[0-9]*'); do
+    if [ "$(blockdev --getsize64 "$dev")" -eq 0 ]; then
+      echo "$dev"
+      return 0
+    fi
+  done
+  return 1
 }
 
 # Prints name of the package needed for creating the specified filesystem.
 fs_progs_pkg() {
-	local fs="$1"  # filesystem name
+  local fs="$1" # filesystem name
 
-	case "$fs" in
-		ext4) echo 'e2fsprogs';;
-		btrfs) echo 'btrfs-progs';;
-		xfs) echo 'xfsprogs';;
-	esac
+  case "$fs" in
+  ext4) echo 'e2fsprogs' ;;
+  btrfs) echo 'btrfs-progs' ;;
+  xfs) echo 'xfsprogs' ;;
+  esac
 }
 
 # Binds the directory $1 at the mountpoint $2 and sets propagation to private.
 mount_bind() {
-	mkdir -p "$2"
-	mount --bind "$1" "$2"
-	mount --make-private "$2"
+  mkdir -p "$2"
+  mount --bind "$1" "$2"
+  mount --make-private "$2"
 }
 
 # Prepares chroot at the specified path.
 prepare_chroot() {
-	local dest="$1"
+  local dest="$1"
 
-	mkdir -p "$dest"/proc
-	mount -t proc none "$dest"/proc
-	mount_bind /dev "$dest"/dev
-	mount_bind /sys "$dest"/sys
+  mkdir -p "$dest"/proc
+  mount -t proc none "$dest"/proc
+  mount_bind /dev "$dest"/dev
+  mount_bind /sys "$dest"/sys
 
-	install -D -m 644 /etc/resolv.conf "$dest"/etc/resolv.conf
+  install -D -m 644 /etc/resolv.conf "$dest"/etc/resolv.conf
 }
 
 # Adds specified services to the runlevel. Current working directory must be
 # root of the image.
 rc_add() {
-	local runlevel="$1"; shift  # runlevel name
-	local services="$*"  # names of services
+  local runlevel="$1"
+  shift               # runlevel name
+  local services="$*" # names of services
 
-	local svc; for svc in $services; do
-		mkdir -p etc/runlevels/$runlevel
-		ln -s /etc/init.d/$svc etc/runlevels/$runlevel/$svc
-		echo " * service $svc added to runlevel $runlevel"
-	done
+  local svc
+  for svc in $services; do
+    mkdir -p etc/runlevels/$runlevel
+    ln -s /etc/init.d/$svc etc/runlevels/$runlevel/$svc
+    echo " * service $svc added to runlevel $runlevel"
+  done
 }
 
 # Installs and configures extlinux.
 setup_extlinux() {
-	local mnt="$1"  # path of directory where is root device currently mounted
-	local root_dev="$2"  # root device
-	local modules="$3"  # modules which should be loaded before pivot_root
-	local kernel_flavor="$4"  # name of default kernel to boot
-	local serial_port="$5"  # serial port number for serial console
-	local default_kernel="$kernel_flavor"
-	local kernel_opts=''
+  local mnt="$1"           # path of directory where is root device currently mounted
+  local root_dev="$2"      # root device
+  local modules="$3"       # modules which should be loaded before pivot_root
+  local kernel_flavor="$4" # name of default kernel to boot
+  local serial_port="$5"   # serial port number for serial console
+  local default_kernel="$kernel_flavor"
+  local kernel_opts=''
 
-	[ -z "$serial_port" ] || kernel_opts="console=$serial_port"
+  [ -z "$serial_port" ] || kernel_opts="console=$serial_port"
 
-	if [ "$kernel_flavor" = 'virt' ]; then
-		_apk search --root . --exact --quiet linux-lts | grep -q . \
-			&& default_kernel='lts' \
-			|| default_kernel='vanilla'
-	fi
+  if [ "$kernel_flavor" = 'virt' ]; then
+    _apk search --root . --exact --quiet linux-lts | grep -q . &&
+      default_kernel='lts' ||
+      default_kernel='vanilla'
+  fi
 
-	sed -Ei \
-		-e "s|^[# ]*(root)=.*|\1=$root_dev|" \
-		-e "s|^[# ]*(default_kernel_opts)=.*|\1=\"$kernel_opts\"|" \
-		-e "s|^[# ]*(modules)=.*|\1=\"$modules\"|" \
-		-e "s|^[# ]*(default)=.*|\1=$default_kernel|" \
-		-e "s|^[# ]*(serial_port)=.*|\1=$serial_port|" \
-		"$mnt"/etc/update-extlinux.conf
+  sed -Ei \
+    -e "s|^[# ]*(root)=.*|\1=$root_dev|" \
+    -e "s|^[# ]*(default_kernel_opts)=.*|\1=\"$kernel_opts\"|" \
+    -e "s|^[# ]*(modules)=.*|\1=\"$modules\"|" \
+    -e "s|^[# ]*(default)=.*|\1=$default_kernel|" \
+    -e "s|^[# ]*(serial_port)=.*|\1=$serial_port|" \
+    "$mnt"/etc/update-extlinux.conf
 
-	chroot "$mnt" extlinux --install /boot
-	chroot "$mnt" update-extlinux --warn-only 2>&1 \
-		| grep -Fv 'extlinux: cannot open device /dev' >&2
+  chroot "$mnt" extlinux --install /boot
+  chroot "$mnt" update-extlinux --warn-only 2>&1 |
+    grep -Fv 'extlinux: cannot open device /dev' >&2
 }
 
 # Configures mkinitfs.
 setup_mkinitfs() {
-	local mnt="$1"  # path of directory where is root device currently mounted
-	local features="$2"  # list of mkinitfs features
+  local mnt="$1"      # path of directory where is root device currently mounted
+  local features="$2" # list of mkinitfs features
 
-	features=$(printf '%s\n' $features | sort | uniq | xargs)
+  features=$(printf '%s\n' $features | sort | uniq | xargs)
 
-	sed -Ei "s|^[# ]*(features)=.*|\1=\"$features\"|" \
-		"$mnt"/etc/mkinitfs/mkinitfs.conf
+  sed -Ei "s|^[# ]*(features)=.*|\1=\"$features\"|" \
+    "$mnt"/etc/mkinitfs/mkinitfs.conf
 }
 
 # Unmounts all filesystem under the specified directory tree.
 umount_recursively() {
-	local mount_point="$1"
-	test -n "$mount_point" || return 1
+  local mount_point="$1"
+  test -n "$mount_point" || return 1
 
-	cat /proc/mounts \
-		| cut -d ' ' -f 2 \
-		| grep "^$mount_point" \
-		| sort -r \
-		| xargs umount -rn
+  cat /proc/mounts |
+    cut -d ' ' -f 2 |
+    grep "^$mount_point" |
+    sort -r |
+    xargs umount -rn
 }
 
 # Downloads the specified file using wget and checks checksum.
 wgets() (
-	local url="$1"
-	local sha256="$2"
-	local dest="${3:-.}"
+  local url="$1"
+  local sha256="$2"
+  local dest="${3:-.}"
 
-	cd "$dest" \
-		&& wget -T 10 --no-verbose "$url" \
-		&& echo "$sha256  ${url##*/}" | sha256sum -c
+  cd "$dest" &&
+    wget -T 10 --no-verbose "$url" &&
+    echo "$sha256  ${url##*/}" | sha256sum -c
 )
-
 
 #=============================  M a i n  ==============================#
 
 opts=$(getopt -n $PROGNAME -o b:cCf:hi:k:p:r:s:tv \
-	-l branch:,image-format:,image-size:,initfs-features:,kernel-flavor:,keys-dir:,mirror-uri:,no-cleanup,packages:,repositories-file:,rootfs:,script-chroot,serial-console,help,version \
-	-- "$@") || help 1 >&2
+  -l branch:,image-format:,image-size:,initfs-features:,kernel-flavor:,keys-dir:,mirror-uri:,no-cleanup,packages:,repositories-file:,rootfs:,script-chroot,serial-console,help,version \
+  -- "$@") || help 1 >&2
 
 eval set -- "$opts"
 while [ $# -gt 0 ]; do
-	n=2
-	case "$1" in
-		-b | --branch) ALPINE_BRANCH="$2";;
-		-f | --image-format) IMAGE_FORMAT="$2";;
-		-s | --image-size) IMAGE_SIZE="$2";;
-		-i | --initfs-features) INITFS_FEATURES="${INITFS_FEATURES:-} $2";;
-		-k | --kernel-flavor) KERNEL_FLAVOR="$2";;
-		     --keys-dir) KEYS_DIR="$(realpath "$2")";;
-		-m | --mirror-uri) ALPINE_MIRROR="$2";;
-		-C | --no-cleanup) CLEANUP='no'; n=1;;
-		-p | --packages) PACKAGES="${PACKAGES:-} $2";;
-		-r | --repositories-file) REPOS_FILE="$(realpath "$2")";;
-		     --rootfs) ROOTFS="$2";;
-		-t | --serial-console) SERIAL_CONSOLE='yes'; n=1;;
-		-c | --script-chroot) SCRIPT_CHROOT='yes'; n=1;;
-		-h | --help) help 0;;
-		-V | --version) echo "$PROGNAME $VERSION"; exit 0;;
-		--) shift; break;;
-	esac
-	shift $n
+  n=2
+  case "$1" in
+  -b | --branch) ALPINE_BRANCH="$2" ;;
+  -f | --image-format) IMAGE_FORMAT="$2" ;;
+  -s | --image-size) IMAGE_SIZE="$2" ;;
+  -i | --initfs-features) INITFS_FEATURES="${INITFS_FEATURES:-} $2" ;;
+  -k | --kernel-flavor) KERNEL_FLAVOR="$2" ;;
+  --keys-dir) KEYS_DIR="$(realpath "$2")" ;;
+  -m | --mirror-uri) ALPINE_MIRROR="$2" ;;
+  -C | --no-cleanup)
+    CLEANUP='no'
+    n=1
+    ;;
+  -p | --packages) PACKAGES="${PACKAGES:-} $2" ;;
+  -r | --repositories-file) REPOS_FILE="$(realpath "$2")" ;;
+  --rootfs) ROOTFS="$2" ;;
+  -t | --serial-console)
+    SERIAL_CONSOLE='yes'
+    n=1
+    ;;
+  -c | --script-chroot)
+    SCRIPT_CHROOT='yes'
+    n=1
+    ;;
+  -h | --help) help 0 ;;
+  -V | --version)
+    echo "$PROGNAME $VERSION"
+    exit 0
+    ;;
+  --)
+    shift
+    break
+    ;;
+  esac
+  shift $n
 done
 
 : ${ALPINE_BRANCH:="latest-stable"}
@@ -356,13 +373,13 @@ done
 : ${SERIAL_CONSOLE:="no"}
 
 case "$ALPINE_BRANCH" in
-	[0-9]*) ALPINE_BRANCH="v$ALPINE_BRANCH";;
+[0-9]*) ALPINE_BRANCH="v$ALPINE_BRANCH" ;;
 esac
 
 if [ -f /etc/alpine-release ]; then
-	: ${INSTALL_HOST_PKGS:="yes"}
+  : ${INSTALL_HOST_PKGS:="yes"}
 else
-	: ${INSTALL_HOST_PKGS:="no"}
+  : ${INSTALL_HOST_PKGS:="no"}
 fi
 
 SERIAL_PORT=
@@ -370,39 +387,43 @@ SERIAL_PORT=
 
 [ $# -ne 0 ] || help 1 >&2
 
-IMAGE_FILE="$1"; shift
+IMAGE_FILE="$1"
+shift
 SCRIPT=
-[ $# -eq 0 ] || { SCRIPT=$(realpath "$1"); shift; }
+[ $# -eq 0 ] || {
+  SCRIPT=$(realpath "$1")
+  shift
+}
 
 [ "$CLEANUP" = no ] || trap cleanup EXIT HUP INT TERM
 
 #-----------------------------------------------------------------------
 if [ "$INSTALL_HOST_PKGS" = yes ]; then
-	einfo 'Installing needed packages on host system'
+  einfo 'Installing needed packages on host system'
 
-	# We need load btrfs module to avoid the error message:
-	# 'failed to open /dev/btrfs-control'
-	if ! grep -q -w "$ROOTFS" /proc/filesystems; then
-		modprobe $ROOTFS
-	fi
-	_apk add -t $VIRTUAL_PKG qemu-img $(fs_progs_pkg "$ROOTFS")
+  # We need load btrfs module to avoid the error message:
+  # 'failed to open /dev/btrfs-control'
+  if ! grep -q -w "$ROOTFS" /proc/filesystems; then
+    modprobe $ROOTFS
+  fi
+  _apk add -t $VIRTUAL_PKG qemu-img $(fs_progs_pkg "$ROOTFS")
 fi
 
 #-----------------------------------------------------------------------
 temp_dir=''
 if ! command -v "$APK" >/dev/null; then
-	einfo "$APK not found, downloading static apk-tools"
+  einfo "$APK not found, downloading static apk-tools"
 
-	temp_dir="$(mktemp -d /tmp/$PROGNAME.XXXXXX)"
-	wgets "$APK_TOOLS_URI" "$APK_TOOLS_SHA256" "$temp_dir"
-	tar -C "$temp_dir" -xzf "$temp_dir/${APK_TOOLS_URI##*/}"
-	APK="$(ls "$temp_dir"/apk-tools-*/apk)"
+  temp_dir="$(mktemp -d /tmp/$PROGNAME.XXXXXX)"
+  wgets "$APK_TOOLS_URI" "$APK_TOOLS_SHA256" "$temp_dir"
+  tar -C "$temp_dir" -xzf "$temp_dir/${APK_TOOLS_URI##*/}"
+  APK="$(ls "$temp_dir"/apk-tools-*/apk)"
 fi
 
 #-----------------------------------------------------------------------
 if [ ! -f "$IMAGE_FILE" ]; then
-	einfo "Creating $IMAGE_FORMAT image of size $IMAGE_SIZE"
-	qemu-img create ${IMAGE_FORMAT:+-f $IMAGE_FORMAT} "$IMAGE_FILE" "$IMAGE_SIZE"
+  einfo "Creating $IMAGE_FORMAT image of size $IMAGE_SIZE"
+  qemu-img create ${IMAGE_FORMAT:+-f $IMAGE_FORMAT} "$IMAGE_FILE" "$IMAGE_SIZE"
 fi
 
 #-----------------------------------------------------------------------
@@ -435,22 +456,22 @@ cd "$mount_dir"
 
 mkdir -p etc/apk/keys
 if [ -f "$REPOS_FILE" ]; then
-	install -m 644 "$REPOS_FILE" etc/apk/repositories
+  install -m 644 "$REPOS_FILE" etc/apk/repositories
 else
-	cat > etc/apk/repositories <<-EOF
+  cat >etc/apk/repositories <<-EOF
 		$ALPINE_MIRROR/$ALPINE_BRANCH/main
 		$ALPINE_MIRROR/$ALPINE_BRANCH/community
 	EOF
 fi
 if [ -d "$KEYS_DIR" ]; then
-	cp "$KEYS_DIR"/* etc/apk/keys/
+  cp "$KEYS_DIR"/* etc/apk/keys/
 else
-	dump_alpine_keys etc/apk/keys/
+  dump_alpine_keys etc/apk/keys/
 fi
 
 # Use APK cache if available.
 if [ -L /etc/apk/cache ]; then
-	ln -s "$(realpath /etc/apk/cache)" etc/apk/cache
+  ln -s "$(realpath /etc/apk/cache)" etc/apk/cache
 fi
 
 _apk add --root . --update-cache --initdb alpine-base
@@ -478,50 +499,50 @@ einfo 'Setting up extlinux bootloader'
 _apk add --root . --no-scripts syslinux
 setup_extlinux . "UUID=$root_uuid" "$ROOTFS" "$KERNEL_FLAVOR" "$SERIAL_PORT"
 
-cat > etc/fstab <<-EOF
+cat >etc/fstab <<-EOF
 	# <fs>		<mountpoint>	<type>	<opts>		<dump/pass>
 	UUID=$root_uuid	/		$ROOTFS	noatime		0 1
 EOF
 
 #-----------------------------------------------------------------------
 if [ "$SERIAL_PORT" ]; then
-	echo "$SERIAL_PORT" >> "$mount_dir"/etc/securetty
-	sed -Ei "s|^[# ]*($SERIAL_PORT:.*)|\1|" "$mount_dir"/etc/inittab
+  echo "$SERIAL_PORT" >>"$mount_dir"/etc/securetty
+  sed -Ei "s|^[# ]*($SERIAL_PORT:.*)|\1|" "$mount_dir"/etc/inittab
 fi
 
 #-----------------------------------------------------------------------
 einfo 'Enabling base system services'
 
 rc_add sysinit devfs dmesg mdev hwdrivers
-[ -e etc/init.d/cgroups ] && rc_add sysinit cgroups ||:  # since v3.8
+[ -e etc/init.d/cgroups ] && rc_add sysinit cgroups || : # since v3.8
 
 rc_add boot modules hwclock swap hostname sysctl bootmisc syslog
 rc_add shutdown killprocs savecache mount-ro
 
 #-----------------------------------------------------------------------
 if [ "$PACKAGES" ]; then
-	einfo 'Installing additional packages'
-	_apk add --root . $PACKAGES
+  einfo 'Installing additional packages'
+  _apk add --root . $PACKAGES
 fi
 
 #-----------------------------------------------------------------------
 if [ -L /etc/apk/cache ]; then
-	rm etc/apk/cache >/dev/null 2>&1
+  rm etc/apk/cache >/dev/null 2>&1
 fi
 
 #-----------------------------------------------------------------------
 if [ "$SCRIPT" ]; then
-	script_name="${SCRIPT##*/}"
+  script_name="${SCRIPT##*/}"
 
-	if [ "$SCRIPT_CHROOT" = 'no' ]; then
-		einfo "Executing script: $script_name $*"
-		"$SCRIPT" "$@" || die 'Script failed'
-	else
-		einfo "Executing script in chroot: $script_name $*"
-		mount_bind "${SCRIPT%/*}" mnt/
-		chroot . /bin/sh -c "cd /mnt && ./$script_name \"\$@\"" -- "$@" \
-			|| die 'Script failed'
-	fi
+  if [ "$SCRIPT_CHROOT" = 'no' ]; then
+    einfo "Executing script: $script_name $*"
+    "$SCRIPT" "$@" || die 'Script failed'
+  else
+    einfo "Executing script in chroot: $script_name $*"
+    mount_bind "${SCRIPT%/*}" mnt/
+    chroot . /bin/sh -c "cd /mnt && ./$script_name \"\$@\"" -- "$@" ||
+      die 'Script failed'
+  fi
 fi
 
 #-----------------------------------------------------------------------
