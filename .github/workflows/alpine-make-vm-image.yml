@@ -1,8 +1,9 @@
-name: CI
+name: alpine make vm image
+
 on: workflow_dispatch
 
 jobs:
-  build:
+  build-and-upload:
     runs-on: ubuntu-latest
 
     steps:
