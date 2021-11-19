@@ -7,6 +7,8 @@ git
 less
 logrotate
 neovim
+open-vm-tools
+open-vm-tools-guestinfo
 openssh
 ripgrep
 sudo
