@@ -8,7 +8,7 @@ build:
   before_script:
     - apt-get update
     - apt-get upgrade -qq
-    - apt-get install -qq qemu-utils
+    - apt-get install -qq qemu-utils wget
   script: |
     ./alpine-make-vm-image \
       --image-format qcow2 \
