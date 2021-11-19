@@ -1,20 +1,22 @@
-image: alpine
-
 stages:
   - build
 
 build:
   stage: build
-  before_script:
-    - apk update && apk upgrade
-    - apk add qemu-img util-linux
   script: |
-    ./alpine-make-vm-image \
+    sudo ./alpine-make-vm-image \
       --image-format qcow2 \
       --image-size 2G \
       --repositories-file configure/repositories \
       --packages "$(cat configure/packages)" \
       --script-chroot \
       alpine-virthardened.qcow2 -- ./configure/setup.sh
+  artifacts:
+    paths:
+      - alpine-virthardened.qcow2
+    untracked: false
+    expire_in: 30 days
+  tags:
+    - machine
   only:
     - main
