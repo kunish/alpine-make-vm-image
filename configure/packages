@@ -1,4 +1,6 @@
 bat
+bind-tools
+blkid
 chrony
 docker
 fd
@@ -7,7 +9,9 @@ fzf
 git
 less
 logrotate
+lsblk
 neovim
+net-tools
 open-vm-tools
 open-vm-tools-guestinfo
 openssh
