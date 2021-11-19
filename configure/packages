@@ -2,6 +2,7 @@ bat
 chrony
 docker
 fd
+fish
 fzf
 git
 less
@@ -11,6 +12,7 @@ open-vm-tools
 open-vm-tools-guestinfo
 openssh
 ripgrep
+shadow
 sudo
 tmux
 vim
