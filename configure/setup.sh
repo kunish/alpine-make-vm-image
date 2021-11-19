@@ -26,6 +26,7 @@ sed -Ei \
 
 step 'Enable services'
 rc-update add net.lo boot
+rc-update add open-vm-tools boot
 rc-update add termencoding boot
 
 rc-update add acpid default
