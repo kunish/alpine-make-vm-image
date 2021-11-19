@@ -1,4 +1,4 @@
-image: ubuntu
+image: alpine
 
 stages:
   - build
@@ -6,9 +6,8 @@ stages:
 build:
   stage: build
   before_script:
-    - apt-get update
-    - apt-get upgrade -qq
-    - apt-get install -qq qemu-utils wget
+    - apk update && apk upgrade
+    - apk add qemu-img util-linux
   script: |
     ./alpine-make-vm-image \
       --image-format qcow2 \
@@ -17,4 +16,5 @@ build:
       --packages "$(cat configure/packages)" \
       --script-chroot \
       alpine-virthardened.qcow2 -- ./configure/setup.sh
-  when: manual
+  only:
+    - main
