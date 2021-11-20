@@ -3,6 +3,8 @@ stages:
 
 build:
   stage: build
+  before_script:
+    - sudo apt-get install qemu-utils
   script: |
     sudo ./alpine-make-vm-image \
       --image-format qcow2 \
