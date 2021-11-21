@@ -1,0 +1,28 @@
+version: 2.1
+
+branches:
+  - main
+
+workflows:
+  build:
+    jobs:
+      - build-alpine
+
+jobs:
+  build-alpine:
+    machine:
+      image: ubuntu-2004
+
+    steps:
+      - checkout
+      - run: sudo apt-get install qemu-utils
+      - run: |
+          sudo ./alpine-make-vm-image \
+            --image-format qcow2 \
+            --image-size 2G \
+            --repositories-file configure/repositories \
+            --packages "$(cat configure/packages)" \
+            --script-chroot \
+            alpine-virthardened.qcow2 -- ./configure/setup.sh
+      - store_artifacts:
+          path: alpine-virthardened.qcow2
