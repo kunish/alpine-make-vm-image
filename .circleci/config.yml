@@ -15,7 +15,7 @@ jobs:
 
     steps:
       - checkout
-      - run: sudo apt-get install qemu-utils
+      - run: sudo apt-get install qemu-img
       - run: |
           sudo ./alpine-make-vm-image \
             --image-format qcow2 \
