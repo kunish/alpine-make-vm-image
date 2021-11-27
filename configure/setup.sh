@@ -25,16 +25,15 @@ sed -Ei \
   /etc/rc.conf
 
 step 'Enable services'
-rc-update add net.lo boot
-rc-update add open-vm-tools boot
-rc-update add sshd boot
-rc-update add termencoding boot
-
-rc-update add acpid default
-rc-update add chronyd default
-rc-update add crond default
-rc-update add docker default
-rc-update add net.eth0 default
+rc-update add acpid
+rc-update add chronyd
+rc-update add crond
+rc-update add docker
+rc-update add net.eth0
+rc-update add net.lo
+rc-update add open-vm-tools
+rc-update add sshd
+rc-update add termencoding
 
 step 'Setup shell'
 chsh -s /usr/bin/fish
