@@ -24,6 +24,16 @@ sed -Ei \
   -e 's/^[# ](unicode)=.*/\1=YES/' \
   /etc/rc.conf
 
+step 'Adjust sshd_config'
+sed -Ei \
+  -e 's/^[# ](PermitRootLogin).*/\1=yes/' \
+  -e 's/^[# ](PasswordAuthentication).*/\1=yes/' \
+  -e 's/^[# ](PermitEmptyPasswords).*/\1=yes/' \
+  /etc/ssh/sshd_config
+
+step 'Set hostname'
+echo 'alpine' >/etc/hostname
+
 step 'Enable services'
 rc-update add acpid
 rc-update add chronyd
