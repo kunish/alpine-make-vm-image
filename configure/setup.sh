@@ -38,3 +38,7 @@ rc-update add net.eth0 default
 
 step 'Setup shell'
 chsh -s /usr/bin/fish
+touch .hushlogin
+cat >~/.config/fish/config.fish <<-EOF
+set -x fish_greeting
+EOF
