@@ -26,9 +26,7 @@ sed -Ei \
 
 step 'Adjust sshd_config'
 sed -Ei \
-  -e 's/^[# ](PermitRootLogin).*/\1=yes/' \
   -e 's/^[# ](PasswordAuthentication).*/\1=yes/' \
-  -e 's/^[# ](PermitEmptyPasswords).*/\1=yes/' \
   /etc/ssh/sshd_config
 
 step 'Set hostname'
@@ -45,10 +43,9 @@ rc-update add open-vm-tools
 rc-update add sshd
 rc-update add termencoding
 
-step 'Setup shell'
-chsh -s /usr/bin/fish
-touch .hushlogin
-mkdir -p ~/.config/fish
-cat >~/.config/fish/config.fish <<-EOF
-set -x fish_greeting
-EOF
+step 'Setup passwordless wheel group'
+echo '%wheel ALL=(ALL) NOPASSWD:ALL' >/etc/sudoers.d/wheel
+
+step 'Create a new sudo user'
+useradd -m -G wheel -s /usr/bin/fish alpine
+echo 'alpine:alpine' | chpasswd alpine
